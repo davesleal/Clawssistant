@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "clawssistant"
+version = "0.1.0"
+description = "Open-source, Claude AI-powered home assistant"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [
+    { name = "Dave Leal" },
+]
+keywords = ["home-assistant", "claude", "voice-assistant", "smart-home", "mcp"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Home Automation",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "anthropic>=0.40.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "uvloop>=0.20.0",
+    "pyyaml>=6.0",
+    "aiosqlite>=0.20.0",
+    "aiomqtt>=2.0.0",
+    "httpx>=0.27.0",
+    "websockets>=13.0",
+    "zeroconf>=0.130.0",
+    "rich>=13.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+voice = [
+    "faster-whisper>=1.0.0",
+    "openwakeword>=0.6.0",
+    "piper-tts>=1.2.0",
+    "pyaudio>=0.2.14",
+    "webrtcvad>=2.0.10",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5.0",
+    "mypy>=1.10",
+]
+all = ["clawssistant[voice,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/davesleal/Clawssistant"
+Repository = "https://github.com/davesleal/Clawssistant"
+Issues = "https://github.com/davesleal/Clawssistant/issues"
+
+[project.scripts]
+clawssistant = "clawssistant.__main__:main"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "SIM",   # flake8-simplify
+    "TCH",   # flake8-type-checking
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["clawssistant"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

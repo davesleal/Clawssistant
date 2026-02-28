@@ -1,30 +1,85 @@
-# General-purpose .gitignore template
-
-# Logs
-logs/
-*.log
-
-# Node.js
-node_modules/
-package-lock.json
+# Clawssistant .gitignore
 
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# Rust
+target/
+Cargo.lock
+
+# Environment and secrets
 .env
+.env.*
+config.yaml
+!config.example.yaml
+secrets.yaml
 
-# Temporary files
-*.tmp
-*.temp
+# Logs
+logs/
+*.log
 
-# OS-specific files
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# ML models (large files)
+models/*.bin
+models/*.onnx
+models/*.tflite
+models/*.pt
+models/*.gguf
+
+# Audio recordings (privacy)
+recordings/
+*.wav
+*.mp3
+*.ogg
+*.flac
+
+# Node.js (web dashboard)
+node_modules/
+package-lock.json
+yarn.lock
+web/dist/
+web/build/
+
+# Testing and coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS files
 .DS_Store
 Thumbs.db
 
-# Editor specific files
+# Editor files
 .idea/
 .vscode/
 *~
 *.swp
+*.swo
+
+# ESP32 / PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Temporary
+*.tmp
+*.temp
+*.bak

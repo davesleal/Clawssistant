@@ -1,0 +1,165 @@
+# Clawssistant Configuration
+# Copy this file to config.yaml and edit to match your setup.
+# Environment variables can be used with ${VAR_NAME} syntax.
+
+# --- Assistant Settings ---
+assistant:
+  # Display name for the assistant
+  name: Clawssistant
+  # Wake word for voice activation (must match trained model)
+  wake_word: clawssistant
+  # Language for voice pipeline (BCP-47 format)
+  language: en-US
+
+# --- Claude AI Settings ---
+claude:
+  # Anthropic API key (recommended: use env var ANTHROPIC_API_KEY)
+  api_key: ${ANTHROPIC_API_KEY}
+  # Model to use for conversations
+  model: claude-sonnet-4-6
+  # Maximum tokens per response
+  max_tokens: 1024
+  # System prompt additions (appended to built-in system prompt)
+  custom_instructions: ""
+
+# --- Voice Pipeline ---
+voice:
+  # Wake word detection
+  wake_word:
+    # Engine: openwakeword
+    engine: openwakeword
+    # Sensitivity (0.0 to 1.0, higher = more sensitive but more false positives)
+    sensitivity: 0.5
+
+  # Speech-to-text
+  stt:
+    # Engine: faster-whisper, whisper-cpp
+    engine: faster-whisper
+    # Model size: tiny, base, small, medium, large-v3
+    # Smaller = faster but less accurate. "base" works well on RPi 5.
+    model: base
+    # Device: cpu, cuda, auto
+    device: cpu
+
+  # Text-to-speech
+  tts:
+    # Engine: piper
+    engine: piper
+    # Piper voice model (see https://github.com/rhasspy/piper for options)
+    voice: en_US-lessac-medium
+    # Speech rate multiplier (1.0 = normal)
+    rate: 1.0
+
+  # Audio hardware
+  audio:
+    # Input device (microphone) — leave blank for system default
+    input_device: ""
+    # Output device (speaker) — leave blank for system default
+    output_device: ""
+    # Sample rate in Hz
+    sample_rate: 16000
+    # Noise suppression (requires additional library)
+    noise_suppression: false
+
+# --- Home Assistant Integration ---
+homeassistant:
+  # Home Assistant URL
+  url: http://homeassistant.local:8123
+  # Long-lived access token (create in HA: Profile -> Security -> Long-Lived Access Tokens)
+  token: ${HA_TOKEN}
+  # Verify SSL certificate (set false for self-signed certs)
+  verify_ssl: true
+
+# --- Conversation Settings ---
+conversation:
+  # Maximum conversation history to include in context (number of exchanges)
+  max_history: 20
+  # Conversation timeout — resets context after this many seconds of silence
+  timeout_seconds: 300
+  # Enable long-term memory (stores facts and preferences in local DB)
+  memory:
+    enabled: true
+    # Database path for memory storage
+    db_path: data/memory.db
+
+# --- Skills ---
+skills:
+  # Enable or disable built-in skills
+  enabled:
+    - core.lights
+    - core.climate
+    - core.media
+    - core.timers
+    - core.weather
+    - core.routines
+    - core.shopping_list
+    - core.calendar
+    - core.notifications
+    # Uncomment to enable developer skills
+    # - dev.code
+    # - dev.shell
+
+  # Directory for custom skill plugins
+  custom_dir: skills/
+
+  # Weather skill config
+  weather:
+    # Provider: openweathermap, openmeteo (free, no key needed)
+    provider: openmeteo
+    # Your location for weather queries
+    latitude: 0.0
+    longitude: 0.0
+    # Units: metric, imperial
+    units: imperial
+
+# --- MCP Servers ---
+mcp:
+  # Built-in MCP servers (enabled by default)
+  builtin:
+    - clawssistant-home
+    - clawssistant-media
+    - clawssistant-system
+    - clawssistant-memory
+
+  # Custom MCP server configurations
+  # servers:
+  #   - name: my-custom-server
+  #     command: python
+  #     args: ["-m", "my_mcp_server"]
+
+# --- API Server ---
+api:
+  # Host to bind to (0.0.0.0 for all interfaces)
+  host: 0.0.0.0
+  # Port for the REST + WebSocket API
+  port: 8400
+  # Enable authentication for the API
+  auth:
+    enabled: false
+    # API key for authenticating requests (set if auth is enabled)
+    # api_key: ${CLAWSSISTANT_API_KEY}
+
+# --- Wyoming Satellite Support ---
+satellites:
+  # Enable Wyoming protocol server for ESP32/RPi satellites
+  enabled: false
+  # Port for Wyoming protocol
+  port: 10400
+
+# --- Logging ---
+logging:
+  # Log level: debug, info, warning, error
+  level: info
+  # Log to file (in addition to console)
+  file: logs/clawssistant.log
+
+# --- Local LLM Fallback ---
+# Used when Anthropic API is unavailable (offline mode)
+local_llm:
+  enabled: false
+  # Backend: ollama, llama-cpp
+  backend: ollama
+  # Model name (must be pulled/downloaded first)
+  model: llama3.2
+  # Ollama API URL
+  url: http://localhost:11434
