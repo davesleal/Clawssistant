@@ -76,14 +76,32 @@ conversation.
 
 ### Voice Pipeline (All Open Source)
 
-| Stage | Technology | Notes |
-|-------|-----------|-------|
-| Wake Word | openWakeWord | Custom wake word training supported |
-| Speech-to-Text | faster-whisper / Whisper.cpp | Runs locally on RPi 5 or better |
-| Natural Language | Claude (API) / local fallback | MCP tool use for device actions |
-| Text-to-Speech | Piper TTS | High-quality local neural TTS |
-| Audio I/O | PipeWire / PulseAudio | Supports USB mics, I2S, Bluetooth |
-| Satellite Protocol | Wyoming | ESP32 room satellites for multi-room |
+Clawssistant uses a two-tier voice architecture: thin satellite devices in each room
+handle wake word detection and audio I/O, while the central hub runs the heavy
+processing (STT, Claude brain, TTS).
+
+| Stage | Technology | Where It Runs | Notes |
+|-------|-----------|---------------|-------|
+| Wake Word | microWakeWord / openWakeWord | Satellite (on-device) | Runs on ESP32-S3 / XMOS, no cloud needed |
+| Audio Capture | XMOS XU316 (Voice PE) | Satellite | Echo cancellation, noise suppression, auto gain |
+| Audio Transport | Wyoming Protocol | Network | Streams audio from satellite to hub |
+| Speech-to-Text | faster-whisper / Whisper.cpp | Hub | Runs locally on RPi 5 / N100, or HA Cloud |
+| Natural Language | Claude (API) / local fallback | Hub → Cloud | Anthropic conversation agent with tool use |
+| Text-to-Speech | Piper TTS | Hub | High-quality local neural TTS |
+| Audio Output | Wyoming Protocol → Speaker | Satellite | Response audio streamed back to room |
+| Satellite Protocol | ESPHome + Wyoming | Network | HA Voice PE, ESP32-S3-BOX-3, or DIY |
+
+**Home Assistant Integration:**
+Clawssistant registers as a **conversation agent** in Home Assistant's Assist pipeline.
+This means the Voice PE and any Wyoming satellite work out of the box — HA routes the
+transcribed text to Claude (via the Anthropic conversation integration or our custom
+agent), and Claude's response is sent back through TTS to the satellite.
+
+**MCP Bridge:**
+Home Assistant's built-in MCP Server integration exposes HA entities and services to
+Claude. This means Claude can control devices, read sensor states, and trigger
+automations through MCP tools — no custom integration code needed for basic device
+control.
 
 ### Claude Brain
 
@@ -178,28 +196,55 @@ Skills are pluggable modules that give Clawssistant specific capabilities:
 
 ## Hardware Targets
 
-### Primary (Recommended)
+### Two-Tier Architecture
 
-| Hardware | CPU | RAM | Notes |
-|----------|-----|-----|-------|
-| Raspberry Pi 5 | ARM Cortex-A76 4-core | 4-8 GB | Best balance of cost and power |
-| Home Assistant Yellow | RPi CM4 | 2-8 GB | Purpose-built HA hardware with Zigbee |
-| Home Assistant Green | ARM quad-core | 4 GB | Budget HA hardware |
-| Mini PC (x86) | Intel N100+ | 8-16 GB | Best performance, runs local models |
+Clawssistant runs as a hub-and-satellite system:
 
-### Satellite Devices (Room Units)
+- **Hub** — runs Home Assistant, Claude brain, STT, TTS. Needs real compute.
+- **Satellites** — one per room. Handle wake word detection and audio I/O. Thin clients.
 
-| Hardware | Purpose | Notes |
-|----------|---------|-------|
-| ESP32-S3-BOX-3 | Voice satellite | Built-in mic, speaker, screen |
-| ESP32 + INMP441 + MAX98357 | DIY voice satellite | Cheapest option (~$10) |
-| Raspberry Pi Zero 2W | Voice satellite | More capable, runs local wake word |
-| Re-purposed tablets | Wall-mounted dashboard + voice | Android/iOS companion app |
+### Hub Options (pick one)
 
-### Audio Hardware
+| Hardware | CPU | RAM | Local STT | Local LLM | Price | Best For |
+|----------|-----|-----|-----------|-----------|-------|----------|
+| Home Assistant Green | 1.8 GHz Cortex-A55 (RK3566) | 4 GB | Slow (~5-8s) | No | ~$100 | Cloud-first setups (HA Cloud or Anthropic API handles heavy work) |
+| Raspberry Pi 5 | 2.4 GHz Cortex-A76 | 4-8 GB | Usable (~2-3s) | Marginal | ~$80 | Balanced: local STT + cloud Claude |
+| Mini PC (x86) | Intel N100+ 3.4 GHz | 8-16 GB | Fast (~1s) | Yes (7B models) | ~$150 | Fully local processing, power users |
+| Home Assistant Yellow | RPi CM4 | 2-8 GB | Slow-usable | No | ~$135 | Built-in Zigbee, HA-optimized |
 
-- **Microphones:** ReSpeaker 2-Mic/4-Mic Pi HAT, USB conference mics, INMP441 (I2S)
-- **Speakers:** Any 3.5mm/USB/Bluetooth/I2S speaker, HiFiBerry DAC for quality audio
+**Recommendation:**
+- If using Claude API (cloud) for the brain → **HA Green works fine.** STT can be
+  offloaded to HA Cloud ($6.50/mo) or run locally with acceptable latency.
+- If you want everything local → **RPi 5 (8GB) minimum**, N100 mini PC ideal.
+- The hub choice depends on your privacy/latency/cost tradeoffs, not the satellites.
+
+### Satellite Devices (one per room)
+
+| Hardware | Price | Wake Word | Audio Quality | Setup | Notes |
+|----------|-------|-----------|---------------|-------|-------|
+| **HA Voice Preview Edition** | ~$59 | On-device (microWakeWord via XMOS) | Excellent (XMOS echo cancellation, noise suppression, dual-mic array) | Plug and play | **Recommended.** Hardware mute switch, rotary dial, LED ring, 3.5mm out, Grove port. ESPHome firmware, fully open source. |
+| ESP32-S3-BOX-3 | ~$45 | On-device (microWakeWord) | Good (built-in mic + speaker, touch screen) | Plug and play | Great budget option with a screen |
+| DIY ESP32-S3 + INMP441 + MAX98357 | ~$10 | On-device or server-side | Basic (no echo cancellation) | Soldering required | Cheapest, for tinkerers |
+| Re-purposed tablets | ~$0 | App-based | Varies | App install | Wall-mounted dashboard + voice via companion app |
+
+**Why the Voice PE is the default recommendation:**
+- XMOS XU316 audio processor handles echo cancellation, noise suppression, and auto
+  gain — critical for reliable voice in real rooms with ambient noise
+- microWakeWord runs on-device (no network round-trip for wake word detection)
+- Hardware mute switch physically cuts mic power (privacy by design)
+- Rotary dial + multifunction button + LED ring for non-voice interaction
+- 3.5mm stereo jack for external speakers (media playback)
+- Grove port for sensor expansion
+- Fully open-source firmware (ESPHome), easy to flash custom firmware
+- $59 is competitive with DIY builds when you factor in time, 3D printing, and
+  audio quality
+
+### Audio Hardware (Hub-Direct, if not using satellites)
+
+Only needed if running Clawssistant directly on the hub without satellites:
+
+- **Microphones:** ReSpeaker 2-Mic/4-Mic Pi HAT, USB conference mics
+- **Speakers:** Any 3.5mm/USB/Bluetooth speaker, HiFiBerry DAC for quality audio
 - **Arrays:** ReSpeaker 6-Mic Circular Array for far-field voice capture
 
 ---
@@ -214,13 +259,15 @@ Skills are pluggable modules that give Clawssistant specific capabilities:
 - **Database:** SQLite (local state), optional PostgreSQL for multi-node
 
 ### AI / ML
-- **Claude API:** anthropic Python SDK
-- **MCP:** Model Context Protocol SDK for tool servers
-- **Local STT:** faster-whisper (CTranslate2 backend)
+- **Claude API:** Anthropic conversation integration (built into HA) + anthropic Python SDK
+- **MCP:** Home Assistant MCP Server integration exposes entities/services to Claude;
+  additional MCP servers for custom tools
+- **Local STT:** faster-whisper (CTranslate2 backend) or HA Cloud Whisper
 - **Local TTS:** Piper (ONNX runtime)
-- **Wake word:** openWakeWord (TFLite)
-- **Local LLM fallback:** llama-cpp-python / Ollama
+- **Wake word:** microWakeWord (on-device, used by Voice PE) + openWakeWord (server-side)
+- **Local LLM fallback:** llama-cpp-python / Ollama (requires N100+ hardware)
 - **Speaker ID:** pyannote.audio or speechbrain (optional)
+- **Voice satellite firmware:** ESPHome with voice_assistant component
 
 ### Networking
 - **API server:** FastAPI (REST + WebSocket)
@@ -291,17 +338,35 @@ Clawssistant uses Anthropic's Model Context Protocol (MCP) as its primary
 extensibility mechanism. Claude communicates with the home and external services
 through MCP tool servers.
 
-### Built-in MCP Servers
+### Home Assistant's Built-in MCP Server
 
-- **clawssistant-home** — device control (lights, switches, climate, locks, covers)
-- **clawssistant-media** — media playback control across rooms
-- **clawssistant-system** — system health, logs, configuration management
+Home Assistant now includes an **MCP Server integration** that exposes HA entities and
+services as MCP tools. This means Claude can control devices, read sensor states, and
+trigger automations through the standard MCP protocol — no custom server needed for
+basic device control.
+
+**What HA's MCP Server provides out of the box:**
+- All exposed entities (lights, switches, climate, locks, sensors, etc.)
+- Service calls (turn_on, turn_off, set_temperature, etc.)
+- Entity state queries
+- Automation triggers
+
+**Home Assistant also has an Anthropic Conversation integration** that registers Claude
+as a conversation agent directly in HA's Assist pipeline. This means Voice PE satellites
+can talk to Claude without any Clawssistant middleware — HA handles the routing.
+
+### Clawssistant-Specific MCP Servers
+
+On top of HA's built-in MCP, Clawssistant adds:
+
 - **clawssistant-memory** — read/write user preferences and conversation memory
+- **clawssistant-system** — system health, logs, configuration management
+- **clawssistant-media** — enhanced media control (multi-room, queue management)
 - **clawssistant-code** — file read/write/execute for developer mode
+- **clawssistant-routines** — natural language routine creation and management
 
 ### Community MCP Servers (Examples)
 
-- Home Assistant entity control
 - Spotify / music service control
 - Calendar and task management
 - Email reading and drafting
@@ -312,16 +377,46 @@ through MCP tool servers.
 - Fitness and health trackers
 - Security camera snapshots
 
-### How It Works
+### How It Works (End-to-End Voice Flow)
 
-1. User speaks a command or starts a conversation
-2. Voice pipeline converts speech to text
-3. Conversation manager builds a prompt with context (time, user, device states, history)
-4. Claude receives the prompt with available MCP tools
-5. Claude decides which tools to call (or just responds conversationally)
-6. MCP servers execute the tool calls (turn on lights, check weather, etc.)
-7. Claude synthesizes the results into a natural response
-8. TTS converts the response to speech
+```
+Voice PE Satellite          Home Assistant Hub            Cloud
+─────────────────          ──────────────────           ─────
+1. Wake word detected
+   (microWakeWord on XMOS)
+
+2. Audio streamed ─────────► 3. faster-whisper (STT)
+   via Wyoming protocol        transcribes to text
+
+                             4. HA Assist pipeline
+                                routes to Claude
+                                conversation agent
+
+                             5. Context injected ─────► 6. Claude API
+                                (time, user, devices,      receives prompt
+                                 history, memory)          + MCP tools
+
+                                                        7. Claude decides:
+                                                           - tool calls
+                                                           - or conversation
+
+                             8. MCP tools execute ◄──── 9. Tool results
+                                (HA entities/services)     returned
+
+                            10. Claude response ◄────── 11. Final response
+                                                            synthesized
+
+                            12. Piper TTS converts
+                                response to audio
+
+13. Audio played ◄─────────  via Wyoming protocol
+    on satellite speaker
+```
+
+**Key insight:** Home Assistant is already the orchestration layer for the voice
+pipeline. Clawssistant doesn't need to reimplement STT/TTS routing — it plugs into
+HA's Assist pipeline as a conversation agent and adds the Claude brain, memory,
+multi-turn context, and enhanced skills on top.
 
 ---
 
