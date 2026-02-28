@@ -18,7 +18,6 @@ __pycache__/
 # Temporary files
 *.tmp
 *.temp
-*
 
 # OS-specific files
 .DS_Store
