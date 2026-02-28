@@ -1,0 +1,39 @@
+# Minimal test configuration — all values are fakes, never use in production.
+assistant:
+  name: TestAssistant
+  wake_word: clawssistant
+  language: en-US
+
+claude:
+  api_key: test-api-key-not-real
+  model: claude-sonnet-4-6
+  max_tokens: 256
+
+homeassistant:
+  url: http://localhost:8123
+  token: test-ha-token-not-real
+  verify_ssl: false
+
+conversation:
+  max_history: 5
+  timeout_seconds: 60
+  memory:
+    enabled: true
+    db_path: ":memory:"
+
+skills:
+  enabled:
+    - core.lights
+    - core.climate
+  custom_dir: skills/
+  require_manifest: true
+  allow_unsigned: true
+
+api:
+  host: 127.0.0.1
+  port: 0
+  auth:
+    enabled: false
+
+logging:
+  level: debug
