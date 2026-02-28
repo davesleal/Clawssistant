@@ -325,6 +325,91 @@ through MCP tool servers.
 
 ---
 
+## Security Architecture
+
+### Threat Model
+
+Clawssistant runs in a home network environment controlling physical devices. The security
+model assumes:
+
+- **The local network is semi-trusted** — other devices on the network may be compromised
+- **The audio environment is untrusted** — TVs, visitors, recordings could produce audio
+- **Community skills/MCP servers are untrusted code** — sandboxed by default
+- **The Anthropic API is trusted** — but the network path to it may not be
+
+### Trust Boundaries
+
+```
+Untrusted              | Boundary                  | Trusted
+                       |                           |
+Internet ------------> | Firewall + TLS            | API Server
+Audio environment ---> | Wake Word + Speaker ID    | Voice Pipeline
+Community skills ----> | Subprocess sandbox        | Core Runtime
+MCP tool results ----> | Input validation          | Claude Brain
+Companion apps ------> | Token auth + rate limit   | Conversation Manager
+```
+
+### Security Layers
+
+**1. Network Security**
+- API binds `127.0.0.1` by default — must explicitly opt into network exposure
+- TLS support for all HTTP/WebSocket endpoints
+- No UPnP — never auto-opens router ports
+- mDNS for local discovery only
+- Rate limiting on all API endpoints
+
+**2. Authentication & Authorization**
+- Token-based API authentication (enabled by default)
+- Per-user voice profiles with optional speaker verification
+- Sensitive action classification with tiered confirmation:
+  - Low risk (lights, weather): voice command only
+  - Medium risk (thermostat, locks): voice confirmation
+  - High risk (unlock, disarm): PIN or companion app
+  - Critical (shell exec, config changes): companion app only
+- Home Assistant tokens via environment variables, never in config files
+
+**3. Skill & Plugin Sandboxing**
+- Community skills run in isolated subprocesses
+- `skill.yaml` manifest declares required capabilities (filesystem, network, devices)
+- Skills cannot access capabilities they haven't declared
+- File integrity checking (checksums on load)
+- Hot-reload directory has restricted write permissions
+- No `eval()` / `exec()` / `shell=True` in skill code
+
+**4. MCP Server Isolation**
+- Each MCP server gets scoped capabilities (weather server can't unlock doors)
+- All tool calls logged to audit trail with timestamps and parameters
+- Tool call rate limiting per server
+- MCP servers run as separate processes with minimal system access
+
+**5. Voice Pipeline Security**
+- Audio buffers processed in memory, never persisted by default
+- Optional speaker verification via pyannote.audio/speechbrain
+- Wake word sensitivity tuning to reduce false triggers
+- Command confirmation for destructive actions
+- No always-listening recording
+
+**6. Data Security**
+- Zero telemetry, zero phone-home
+- SQLite memory database with optional encryption at rest
+- Conversation history stored locally only
+- API keys loaded from environment, never logged or exposed via API
+- `.gitignore` excludes config.yaml, secrets.yaml, .env, database files
+
+### Security Checklist for Development
+
+All code contributions must:
+- Validate all external input (API requests, voice transcriptions, MCP results)
+- Use parameterized queries for database operations
+- Validate file paths to prevent directory traversal
+- Avoid `eval()`, `exec()`, `subprocess(shell=True)` without security review
+- Never log secrets, tokens, or API keys
+- Declare minimal capabilities in skill manifests
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and the full security policy.
+
+---
+
 ## Key Features Roadmap
 
 ### Phase 1 — Foundation

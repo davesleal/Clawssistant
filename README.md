@@ -256,7 +256,23 @@ ruff format .
 
 ---
 
+## Security
+
+Clawssistant controls physical devices in your home. Security is not optional.
+
+- **Auth enabled by default** — API requires token authentication out of the box
+- **Localhost-only by default** — API binds `127.0.0.1`, not `0.0.0.0`
+- **Tiered action confirmation** — sensitive actions (unlock, disarm) require PIN or companion app approval
+- **Skill sandboxing** — community plugins run in isolated subprocesses with declared capabilities
+- **MCP capability scoping** — tool servers only get access to the entities they need
+- **Audit logging** — all tool calls and device actions are logged
+- **Zero telemetry** — no data collection, no phone-home, ever
+
+See [SECURITY.md](SECURITY.md) for the full security model, threat boundaries, and vulnerability reporting.
+
 ## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide. Quick version:
 
 1. Fork the repo
 2. Create a feature branch (`git checkout -b feature/my-feature`)
@@ -264,7 +280,7 @@ ruff format .
 4. Run `ruff check . && ruff format . && pytest tests/`
 5. Submit a PR
 
-All PRs require tests and must pass CI. Discuss major changes in an issue first.
+All PRs require tests and must pass CI. Security-sensitive changes get additional review. Discuss major changes in an issue first.
 
 ---
 
@@ -279,6 +295,8 @@ All PRs require tests and must pass CI. Discuss major changes in an issue first.
 ## Links
 
 - [Architecture & Vision (CLAUDE.md)](CLAUDE.md)
+- [Security Policy (SECURITY.md)](SECURITY.md)
+- [Contributing Guide (CONTRIBUTING.md)](CONTRIBUTING.md)
 - [Anthropic API Docs](https://docs.anthropic.com/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [Home Assistant](https://www.home-assistant.io/)

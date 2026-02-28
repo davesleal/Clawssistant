@@ -1,0 +1,46 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for Clawssistant? We'd love to hear it!
+        For major features, consider opening a Discussion first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem does this feature solve? What's your use case?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches you've thought about?
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Voice Pipeline
+        - Claude Brain / Conversation
+        - Home Assistant Integration
+        - New Skill
+        - MCP Server
+        - API
+        - Hardware
+        - Documentation
+        - Other

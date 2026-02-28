@@ -101,6 +101,10 @@ skills:
 
   # Directory for custom skill plugins
   custom_dir: skills/
+  # Require skill.yaml manifest with capability declarations
+  require_manifest: true
+  # Allow unsigned/unverified community skills (set false for production)
+  allow_unsigned: true
 
   # Weather skill config
   weather:
@@ -129,15 +133,26 @@ mcp:
 
 # --- API Server ---
 api:
-  # Host to bind to (0.0.0.0 for all interfaces)
-  host: 0.0.0.0
+  # Host to bind to
+  # Default: 127.0.0.1 (localhost only — secure by default)
+  # Change to 0.0.0.0 only if you need remote access AND have auth + TLS enabled
+  host: 127.0.0.1
   # Port for the REST + WebSocket API
   port: 8400
-  # Enable authentication for the API
-  auth:
+  # TLS configuration (strongly recommended if exposing beyond localhost)
+  tls:
     enabled: false
-    # API key for authenticating requests (set if auth is enabled)
-    # api_key: ${CLAWSSISTANT_API_KEY}
+    # Path to certificate and key files
+    # cert: /etc/clawssistant/tls/cert.pem
+    # key: /etc/clawssistant/tls/key.pem
+    # auto_generate: true  # Generate self-signed cert on first run
+  # Authentication (enabled by default)
+  auth:
+    enabled: true
+    # API key for authenticating requests (required)
+    api_key: ${CLAWSSISTANT_API_KEY}
+    # Rate limiting (requests per minute per client)
+    rate_limit: 60
 
 # --- Wyoming Satellite Support ---
 satellites:
@@ -145,6 +160,23 @@ satellites:
   enabled: false
   # Port for Wyoming protocol
   port: 10400
+
+# --- Security ---
+security:
+  # Require PIN for high-risk actions (unlock, disarm, purchases)
+  sensitive_action_pin: ""  # Set a numeric PIN to enable
+  # Audit logging — logs all tool calls and device actions
+  audit_log:
+    enabled: true
+    file: logs/audit.log
+  # Voice security
+  voice:
+    # Require confirmation for medium-risk actions
+    confirm_medium_risk: true
+    # Require PIN for high-risk actions (spoken or via companion app)
+    pin_for_high_risk: true
+    # Optional: speaker verification for per-user identification
+    speaker_verification: false
 
 # --- Logging ---
 logging:
