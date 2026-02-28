@@ -85,7 +85,7 @@ processing (STT, Claude brain, TTS).
 | Wake Word | microWakeWord / openWakeWord | Satellite (on-device) | Runs on ESP32-S3 / XMOS, no cloud needed |
 | Audio Capture | XMOS XU316 (Voice PE) | Satellite | Echo cancellation, noise suppression, auto gain |
 | Audio Transport | Wyoming Protocol | Network | Streams audio from satellite to hub |
-| Speech-to-Text | faster-whisper / Whisper.cpp | Hub | Runs locally on RPi 5 / N100, or HA Cloud |
+| Speech-to-Text | faster-whisper / Whisper.cpp | Hub | CPU: 2-3s (RPi 5) / <1s (N100). With AI HAT+: sub-second on any RPi 5 |
 | Natural Language | Claude (API) / local fallback | Hub → Cloud | Anthropic conversation agent with tool use |
 | Text-to-Speech | Piper TTS | Hub | High-quality local neural TTS |
 | Audio Output | Wyoming Protocol → Speaker | Satellite | Response audio streamed back to room |
@@ -115,11 +115,16 @@ interact with the home and perform complex reasoning.
 - Per-user profiles with personalized context
 - Streaming responses for low-latency voice interaction
 
-**Fallback mode (local):**
-- Smaller local models (e.g. via llama.cpp, Ollama) for basic command parsing
+**Fallback mode (local/offline):**
+- **With AI HAT+ 2 (RPi 5):** Small LLMs (1-1.5B params: Qwen 2.5, Llama 3.2) run
+  on the Hailo-10H NPU for intent classification and device command parsing. Handles
+  "turn on the lights" and "what's the temperature?" reliably offline. Not suitable
+  for general conversation — use Claude API for that.
+- **With N100 Mini PC:** Larger models (7B) via llama.cpp / Ollama for better offline
+  conversation quality and more complex reasoning.
 - Intent classification + slot filling for device commands when offline
 - Cached responses for common queries
-- Automatic switchover when API is unavailable
+- Automatic switchover when Claude API is unavailable
 
 **Developer mode:**
 - Full Claude Code-style interaction — read, write, and execute code
@@ -218,6 +223,75 @@ Clawssistant runs as a hub-and-satellite system:
 - If you want everything local → **RPi 5 (8GB) minimum**, N100 mini PC ideal.
 - The hub choice depends on your privacy/latency/cost tradeoffs, not the satellites.
 
+### AI Accelerator (Optional — for RPi 5 hubs)
+
+The Raspberry Pi AI HAT+ family adds a dedicated neural processing unit (NPU) to the
+Pi 5. This dramatically accelerates Whisper speech-to-text and enables offline intent
+parsing — the two biggest barriers to a responsive, local-first voice assistant.
+
+| Accelerator | NPU Chip | TOPS | Dedicated RAM | Price | Key Benefit |
+|-------------|----------|------|---------------|-------|-------------|
+| AI HAT+ | Hailo-8L | 13 (INT8) | — | ~$70 | Sub-second Whisper STT (hybrid: encoder on NPU, decoder on CPU) |
+| AI HAT+ | Hailo-8 | 26 (INT8) | — | ~$110 | Faster STT + multi-model pipelines |
+| **AI HAT+ 2** | **Hailo-10H** | **40 (INT4)** | **8 GB LPDDR4X** | **~$130** | **Sub-second STT + offline LLM fallback (1-1.5B models)** |
+
+**Why this matters for Clawssistant:**
+- **Sub-second STT** — Whisper on the NPU drops transcription from 2-3s (CPU) to under
+  1s. This is the single biggest latency improvement you can make.
+- **CPU freed up** — with STT offloaded to the NPU, the Pi 5's CPU is available for
+  Home Assistant, TTS, event processing, and skill execution.
+- **Offline intent parsing** (AI HAT+ 2 only) — small LLMs (Qwen 2.5 1.5B, Llama 3.2 1B)
+  run on the Hailo-10H's dedicated 8GB RAM for device command parsing when Claude API
+  is unreachable. These models handle "turn on the kitchen lights" reliably but are NOT
+  suitable for general conversation.
+- **Minimal power** — the NPU draws ~2.5W during inference.
+- **Pi 5 RAM not consumed** — models load into the HAT's dedicated 8GB, so even a
+  Pi 5 2GB works as a hub.
+
+**Honest limitations:**
+- 1-1.5B parameter models cannot replace Claude for multi-turn conversation. They're
+  useful for intent classification and slot filling only.
+- 25-40 second cold start delay when the model was previously unloaded.
+- Hailo llama.cpp integration is still a community effort, not official.
+- Piper TTS already runs fast enough on CPU; the NPU doesn't help with TTS.
+
+### Recommended Configurations
+
+Pick a tier based on your priorities:
+
+**🟢 Starter** — Plug and play, cloud-assisted (~$160 per room)
+```
+Hub:       HA Green ($100) — HAOS pre-installed, plug in and go
+Satellite: Voice PE ($59) — auto-discovered by HA
+Brain:     Claude API (cloud)
+STT:       HA Cloud ($6.50/mo) or slow local (~5-8s)
+Setup:     ~15 minutes. Plug in, paste API key, done.
+Best for:  Non-technical users, existing HA Green owners
+```
+
+**🔵 Balanced** — Fast local STT, cloud brain (~$190 + satellite)
+```
+Hub:       RPi 5 4GB ($60) + AI HAT+ 13 TOPS ($70)
+Satellite: Voice PE ($59)
+Brain:     Claude API (cloud)
+STT:       Sub-second on NPU (Whisper encoder on Hailo-8L)
+Setup:     ~30 minutes. Flash HAOS, attach HAT (4 screws), configure.
+Best for:  Fast voice response, audio stays local
+```
+
+**🟣 Local-First** — Maximum privacy, offline capable (~$250 + satellite)
+```
+Hub:       RPi 5 4GB ($60) + AI HAT+ 2 ($130)
+Satellite: Voice PE ($59)
+Brain:     Claude API when online; local 1.5B intent model when offline
+STT:       Sub-second on NPU, CPU free for everything else
+Setup:     ~45 minutes. Flash HAOS, attach HAT, configure LLM fallback.
+Best for:  Privacy maximalists, unreliable internet, fully autonomous
+```
+
+**Note:** RPi 5 only needs 2-4GB because the AI HAT+ 2's models load into its own
+dedicated 8GB RAM, not the Pi's system memory.
+
 ### Satellite Devices (one per room)
 
 | Hardware | Price | Wake Word | Audio Quality | Setup | Notes |
@@ -265,7 +339,11 @@ Only needed if running Clawssistant directly on the hub without satellites:
 - **Local STT:** faster-whisper (CTranslate2 backend) or HA Cloud Whisper
 - **Local TTS:** Piper (ONNX runtime)
 - **Wake word:** microWakeWord (on-device, used by Voice PE) + openWakeWord (server-side)
-- **Local LLM fallback:** llama-cpp-python / Ollama (requires N100+ hardware)
+- **NPU acceleration:** Raspberry Pi AI HAT+ (Hailo-8L/8/10H) for hardware-accelerated
+  Whisper STT and offline intent models. AI HAT+ 2 includes 8GB dedicated RAM for
+  model loading without impacting system memory.
+- **Local LLM fallback:** llama-cpp-python / Ollama — 7B models on N100, 1-1.5B
+  intent models on RPi 5 + AI HAT+ 2
 - **Speaker ID:** pyannote.audio or speechbrain (optional)
 - **Voice satellite firmware:** ESPHome with voice_assistant component
 

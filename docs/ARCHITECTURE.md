@@ -318,47 +318,59 @@ for understanding how every piece connects.
 
 ## 5. Voice Pipeline Detail
 
+Two-tier architecture: thin satellites handle wake word + audio I/O,
+the hub runs STT, Claude brain, and TTS.
+
 ```
+  SATELLITE (per room)                    HUB (central)
+  ════════════════════                    ══════════════
+
 ┌──────────────┐
-│  Microphone   │  ReSpeaker / USB / INMP441 (I2S)
-│  Array        │
+│  Microphone   │  Voice PE: XMOS XU316 (echo cancel,
+│  Array        │  noise suppression, auto gain)
 └──────┬───────┘
        │ Raw PCM (16kHz, 16-bit, mono)
        ▼
 ┌──────────────┐
-│  Wake Word    │  openWakeWord (TFLite)
-│  Detection    │  Custom "Clawssistant" model
+│  Wake Word    │  microWakeWord (on-device, no cloud)
+│  Detection    │  Runs on satellite ESP32 / XMOS
 └──────┬───────┘
-       │ Triggered
+       │ Triggered — audio streams via Wyoming protocol
+       │
+       ══════════════════════════════════════════════════►
+                                          │
+                                   ┌──────▼───────┐
+                                   │   Voice      │  WebRTC VAD
+                                   │   Activity   │  Detects speech
+                                   │   Detection  │  start/end
+                                   └──────┬───────┘
+                                          │ Audio segment
+                                          ▼
+                                   ┌──────────────┐
+                                   │  Speech to   │  faster-whisper
+                                   │  Text (STT)  │  CPU: 2-3s (RPi 5)
+                                   │              │  NPU: <1s (AI HAT+)
+                                   │              │  N100: <1s
+                                   └──────┬───────┘
+                                          │ Transcribed text
+                                          ▼
+                                   ┌──────────────┐
+                                   │  Claude      │  Anthropic API
+                                   │  Brain       │  + MCP tools
+                                   └──────┬───────┘
+                                          │ Response text
+                                          ▼
+                                   ┌──────────────┐
+                                   │  Text to     │  Piper TTS (ONNX)
+                                   │  Speech      │  Neural voices
+                                   └──────┬───────┘
+                                          │ Audio (WAV/PCM)
+       ◄══════════════════════════════════╝
+       │         Wyoming protocol
        ▼
 ┌──────────────┐
-│   Voice      │  WebRTC VAD
-│   Activity   │  Detects speech start/end
-│   Detection  │
-└──────┬───────┘
-       │ Audio segment
-       ▼
-┌──────────────┐
-│  Speech to   │  faster-whisper (CTranslate2)
-│  Text (STT)  │  Runs locally on RPi 5 / x86
-└──────┬───────┘
-       │ Transcribed text
-       ▼
-┌──────────────┐
-│  Claude      │  Anthropic API + MCP tools
-│  Brain       │  Context: time, user, device states, history
-└──────┬───────┘
-       │ Response text
-       ▼
-┌──────────────┐
-│  Text to     │  Piper TTS (ONNX)
-│  Speech      │  High-quality neural voices
-└──────┬───────┘
-       │ Audio (WAV/PCM)
-       ▼
-┌──────────────┐
-│  Speaker     │  3.5mm / USB / Bluetooth / I2S
-│  Output      │  HiFiBerry DAC for quality
+│  Speaker     │  Voice PE: 3.5mm out
+│  Output      │  or built-in (ESP32-S3-BOX)
 └──────────────┘
 ```
 
@@ -394,6 +406,23 @@ for understanding how every piece connects.
 │  │  │    • Built-in Zigbee (Yellow)                    │    │    │
 │  │  └──────────────────────────────────────────────────┘    │    │
 │  │                                                           │    │
+│  │                                                           │    │
+│  │  ┌──────────────────────────────────────────────────┐    │    │
+│  │  │ 🧠 AI ACCELERATOR (optional, RPi 5 only)        │    │    │
+│  │  │                                                   │    │    │
+│  │  │  AI HAT+ 2 (Hailo-10H) ........... $130          │    │    │
+│  │  │    • 40 TOPS INT4, 8 GB dedicated LPDDR4X        │    │    │
+│  │  │    • Sub-second Whisper STT on NPU               │    │    │
+│  │  │    • Offline intent parsing (1.5B LLM)           │    │    │
+│  │  │    • Models load into HAT RAM (Pi RAM untouched) │    │    │
+│  │  │    • 2.5W power draw during inference            │    │    │
+│  │  │                                                   │    │    │
+│  │  │  AI HAT+ (Hailo-8L) .............. $70           │    │    │
+│  │  │    • 13 TOPS INT8                                │    │    │
+│  │  │    • Whisper encoder acceleration only           │    │    │
+│  │  │    • Hybrid mode: encoder on NPU, decoder on CPU │    │    │
+│  │  └──────────────────────────────────────────────────┘    │    │
+│  │                                                           │    │
 │  │  NETWORK:   Ethernet (preferred) or WiFi                 │    │
 │  │  STORAGE:   32GB+ microSD / NVMe SSD                     │    │
 │  │  AUDIO:     USB mic + 3.5mm speaker (minimum)            │    │
@@ -404,37 +433,51 @@ for understanding how every piece connects.
 │  │              SATELLITES (Per-Room Units)                  │    │
 │  │                                                           │    │
 │  │  ┌─────────────────────────────────────────────┐         │    │
-│  │  │ 🎯 ESP32-S3-BOX-3                  ~$45     │         │    │
+│  │  │ 🥇 HA Voice Preview Edition (Voice PE) ~$59 │         │    │
+│  │  │    RECOMMENDED — best-in-class audio         │         │    │
+│  │  │    • XMOS XU316: echo cancel + noise suppr.  │         │    │
+│  │  │    • microWakeWord on-device (no cloud)      │         │    │
+│  │  │    • Hardware mute switch (physical cutoff)  │         │    │
+│  │  │    • Rotary dial, LED ring, 3.5mm out        │         │    │
+│  │  │    • ESPHome firmware, fully open source     │         │    │
+│  │  └─────────────────────────────────────────────┘         │    │
+│  │  ┌─────────────────────────────────────────────┐         │    │
+│  │  │ 🥈 ESP32-S3-BOX-3                  ~$45     │         │    │
 │  │  │    Built-in mic, speaker, touch screen       │         │    │
-│  │  │    Runs openWakeWord locally                 │         │    │
-│  │  │    Streams audio to hub via Wyoming          │         │    │
+│  │  │    Runs microWakeWord locally                │         │    │
+│  │  │    Good budget option with a display         │         │    │
 │  │  └─────────────────────────────────────────────┘         │    │
 │  │  ┌─────────────────────────────────────────────┐         │    │
-│  │  │ 💰 DIY ESP32 + INMP441 + MAX98357  ~$10     │         │    │
-│  │  │    Cheapest option — breadboard prototype    │         │    │
+│  │  │ 🥉 DIY ESP32 + INMP441 + MAX98357  ~$10     │         │    │
+│  │  │    Cheapest option — for tinkerers            │         │    │
+│  │  │    No echo cancellation (basic audio)        │         │    │
 │  │  │    3D-printed enclosure (STLs in hardware/)  │         │    │
-│  │  └─────────────────────────────────────────────┘         │    │
-│  │  ┌─────────────────────────────────────────────┐         │    │
-│  │  │ 🔄 RPi Zero 2W                     ~$15     │         │    │
-│  │  │    More capable, runs local wake word + VAD  │         │    │
-│  │  │    USB mic + speaker                         │         │    │
 │  │  └─────────────────────────────────────────────┘         │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │               MINIMUM TO GET STARTED                     │    │
+│  │           RECOMMENDED CONFIGURATIONS                      │    │
 │  │                                                           │    │
-│  │  • Raspberry Pi 5 (4GB) .............. $60               │    │
-│  │  • microSD card (32GB) ............... $8                │    │
-│  │  • USB-C power supply ................ $12               │    │
-│  │  • USB microphone .................... $10               │    │
-│  │  • Any speaker (3.5mm) ............... $5                │    │
-│  │  • Ethernet cable .................... $5                │    │
-│  │  ─────────────────────────────────────────               │    │
-│  │  TOTAL ............................... ~$100              │    │
+│  │  🟢 STARTER — Cloud-first, plug-and-play      ~$160     │    │
+│  │     • HA Green ($100) + Voice PE ($59)                    │    │
+│  │     • Brain: Claude API (cloud)                           │    │
+│  │     • STT: HA Cloud ($6.50/mo) or slow local (5-8s)      │    │
+│  │     • Best for: least technical, closest to plug-and-play │    │
 │  │                                                           │    │
-│  │  + Anthropic API key (pay-per-use, ~$3/month casual)     │    │
-│  │  + Smart home devices you already own                    │    │
+│  │  🔵 BALANCED — Local STT, cloud brain          ~$190     │    │
+│  │     • RPi 5 4GB ($60) + AI HAT+ 13T ($70) + Voice PE    │    │
+│  │     • Brain: Claude API (cloud)                           │    │
+│  │     • STT: Sub-second on NPU, CPU free for HA/TTS       │    │
+│  │     • Best for: fast voice with audio privacy            │    │
+│  │                                                           │    │
+│  │  🟣 LOCAL-FIRST — Max privacy, offline capable ~$250     │    │
+│  │     • RPi 5 4GB ($60) + AI HAT+ 2 ($130) + Voice PE    │    │
+│  │     • Brain: Claude API + local 1.5B for offline cmds    │    │
+│  │     • STT: Sub-second on NPU w/ 8GB dedicated RAM       │    │
+│  │     • Best for: privacy maximalists, unreliable internet │    │
+│  │                                                           │    │
+│  │  All configs: + Anthropic API key (~$3/mo casual)        │    │
+│  │               + Smart home devices you already own        │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────┐    │
