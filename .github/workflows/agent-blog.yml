@@ -1,0 +1,67 @@
+name: "Agent: Blog Publisher"
+
+# Dispatched by deploy agent after successful deployments,
+# or by PM agent for roadmap/community updates.
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Blog post topic"
+        required: true
+        type: string
+      context:
+        description: "Additional context for the post"
+        required: false
+        type: string
+      action:
+        description: "Action type"
+        required: false
+        default: "write"
+        type: string
+
+  schedule:
+    - cron: "0 12 * * 5"  # Every Friday at noon — weekly dev log
+
+concurrency:
+  group: blog
+  cancel-in-progress: false
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  publish:
+    name: Write & Publish Blog Post
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install anthropic pyyaml
+
+      - name: Configure git
+        run: |
+          git config user.name "Clawssistant Blog Agent"
+          git config user.email "blog@clawssistant.dev"
+
+      - name: Run blog agent
+        run: |
+          TOPIC="${{ inputs.topic || 'Weekly Development Update' }}"
+          CONTEXT="${{ inputs.context || '' }}"
+          python -m agents.scripts.run_agent \
+            --role blog \
+            --action write \
+            --extra "topic=$TOPIC" \
+            --extra "context=$CONTEXT"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}

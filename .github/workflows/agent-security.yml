@@ -1,0 +1,64 @@
+name: "Agent: Security + InfoSec Pair Review"
+
+# Dispatched after sr-engineer approves a PR.
+# Runs BOTH security engineer and infosec agent in parallel.
+# Both must approve for deployment to proceed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        type: string
+      issue_number:
+        description: "Linked issue number"
+        required: true
+        type: string
+      agent_role:
+        description: "Which security agent (security or infosec)"
+        required: false
+        default: "security"
+        type: choice
+        options:
+          - security
+          - infosec
+      action:
+        description: "Action type"
+        required: false
+        default: "security-review"
+        type: string
+
+concurrency:
+  group: security-${{ inputs.agent_role }}-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  security-review:
+    name: "${{ inputs.agent_role == 'infosec' && 'InfoSec' || 'Security Engineer' }} Review"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install anthropic pyyaml
+
+      - name: Run security agent
+        run: |
+          python -m agents.scripts.run_agent \
+            --role "${{ inputs.agent_role }}" \
+            --action security-review \
+            --extra "pr_number=${{ inputs.pr_number }}" \
+            --extra "issue_number=${{ inputs.issue_number }}"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}

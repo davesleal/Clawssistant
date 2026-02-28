@@ -1,0 +1,62 @@
+name: "Agent: Sr. Engineer Review"
+
+# Triggered when a PR is opened or marked ready for review.
+# Also dispatched by orchestrator for tickets in code-review state.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        type: string
+      issue_number:
+        description: "Linked issue number"
+        required: false
+        type: string
+      agent_role:
+        description: "Agent role"
+        required: false
+        default: "sr-engineer"
+        type: string
+
+concurrency:
+  group: review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  review:
+    name: Sr. Engineer Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Skip bot PRs to avoid infinite loops
+    if: github.event.pull_request.user.login != 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install anthropic pyyaml
+
+      - name: Run reviewer agent
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || inputs.pr_number }}"
+          ISSUE_NUM="${{ inputs.issue_number || '0' }}"
+          python -m agents.scripts.run_agent \
+            --role sr-engineer \
+            --action review \
+            --extra "pr_number=$PR_NUM" \
+            --extra "issue_number=$ISSUE_NUM"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}

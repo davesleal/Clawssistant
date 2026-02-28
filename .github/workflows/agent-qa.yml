@@ -1,0 +1,58 @@
+name: "Agent: QA"
+
+# Dispatched after both security + infosec approve.
+# Runs the full test suite and validates acceptance criteria.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to QA"
+        required: true
+        type: string
+      issue_number:
+        description: "Linked issue number"
+        required: true
+        type: string
+      action:
+        description: "Action type"
+        required: false
+        default: "qa"
+        type: string
+
+concurrency:
+  group: qa-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  qa:
+    name: QA Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || '' }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project + dev dependencies
+        run: pip install -e ".[dev]" anthropic pyyaml
+
+      - name: Run QA agent
+        run: |
+          python -m agents.scripts.run_agent \
+            --role qa \
+            --action qa \
+            --extra "pr_number=${{ inputs.pr_number }}" \
+            --extra "issue_number=${{ inputs.issue_number }}"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}

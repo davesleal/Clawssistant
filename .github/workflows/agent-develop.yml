@@ -1,0 +1,66 @@
+name: "Agent: Triad Squad (Develop)"
+
+# Dispatched by the orchestrator when a ticket is ready for development.
+# Runs the triad squad (design + software + UX engineers) as a unit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to develop"
+        required: true
+        type: string
+      action:
+        description: "Action type"
+        required: false
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - address_feedback
+      agent_role:
+        description: "Agent role (always engineer/triad)"
+        required: false
+        default: "engineer"
+        type: string
+
+concurrency:
+  group: develop-${{ inputs.issue_number }}
+  cancel-in-progress: false  # Never cancel an in-progress development
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  develop:
+    name: "Triad Squad: Issue #${{ inputs.issue_number }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # Development can take longer
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for branching
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project + dev dependencies
+        run: pip install -e ".[dev]" anthropic pyyaml
+
+      - name: Configure git
+        run: |
+          git config user.name "Clawssistant Triad Squad"
+          git config user.email "triad@clawssistant.dev"
+
+      - name: Run triad squad
+        run: |
+          python -m agents.scripts.run_agent \
+            --role engineer \
+            --action "${{ inputs.action }}" \
+            --issue-number "${{ inputs.issue_number }}"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}

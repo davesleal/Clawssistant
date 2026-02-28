@@ -1,0 +1,21 @@
+title: Clawssistant Dev Blog
+description: Development updates, architecture decisions, and community news from the Clawssistant project.
+url: ""
+baseurl: ""
+
+markdown: kramdown
+highlighter: rouge
+
+permalink: /:year/:month/:day/:title/
+
+collections:
+  posts:
+    output: true
+    permalink: /:year/:month/:day/:title/
+
+defaults:
+  - scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: "post"

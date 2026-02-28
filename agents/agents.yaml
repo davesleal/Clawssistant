@@ -1,0 +1,160 @@
+# Clawssistant Agent Configuration
+# ----------------------------------
+# Controls agent behavior, response delays, model selection, and capabilities.
+# Modify these values to tune the autonomous system.
+
+system:
+  # Global settings
+  max_dispatches_per_cycle: 10      # Orchestrator dispatch limit per 15-min cycle
+  stale_ticket_days: 7              # Days before a ticket is flagged as stale
+  archive_inactive_days: 30         # Days before inactive tickets are auto-archived
+  context_preservation: true        # Always write handoff context blocks
+  audit_all_actions: true           # Log all agent actions to issue comments
+
+  # Response delay (minutes) — agents wait this long before responding to each
+  # other and to users, simulating asynchronous team communication.
+  default_response_delay_minutes: 15
+
+  # Cost controls
+  max_tokens_per_cycle: 50000       # Global token budget per orchestrator cycle
+  model_default: "claude-sonnet-4-6"
+
+# ---------------------------------------------------------------------------
+# Agent-specific overrides (merged with AGENT_CAPABILITIES in config.py)
+# ---------------------------------------------------------------------------
+agents:
+  orchestrator:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 8192
+
+  pm:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 8192
+
+  triage:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 4096
+
+  engineer:
+    # The "engineer" role is actually a triad squad:
+    # Design Engineer + Software Engineer + UX Engineer
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 8192
+    triad_mode: true
+
+  sr-engineer:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 8192
+
+  security:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 4096
+
+  infosec:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 4096
+
+  qa:
+    response_delay_minutes: 15
+    model: "claude-sonnet-4-6"
+    max_tokens: 4096
+
+  wildcard:
+    response_delay_minutes: 30
+    model: "claude-sonnet-4-6"
+    max_tokens: 8192
+    scan_schedule: "weekly"
+
+  blog:
+    response_delay_minutes: 30
+    model: "claude-sonnet-4-6"
+    max_tokens: 4096
+
+# ---------------------------------------------------------------------------
+# Ticket lifecycle
+# ---------------------------------------------------------------------------
+lifecycle:
+  states:
+    - new
+    - triaging
+    - feasibility-review
+    - scoped
+    - backlog
+    - ready
+    - in-progress
+    - code-review
+    - security-review
+    - qa
+    - deploying
+    - deployed
+    - blocked
+    - archived
+
+  # Who acts at each state
+  state_agents:
+    new: [triage, pm]
+    triaging: [triage]
+    feasibility-review: [triage]
+    scoped: [pm]
+    backlog: [pm, orchestrator]
+    ready: [orchestrator]           # Orchestrator dispatches triad squad
+    in-progress: [engineer]         # Triad squad develops
+    code-review: [sr-engineer]      # Sr engineer reviews
+    security-review: [security, infosec]  # Pair security review
+    qa: [qa]                        # QA validation
+    deploying: [orchestrator]       # Orchestrator triggers deploy
+    blocked: [orchestrator]         # Orchestrator resolves blocks
+
+# ---------------------------------------------------------------------------
+# Triad squad configuration
+# ---------------------------------------------------------------------------
+triad:
+  description: >
+    The executing task force. Three engineers work as a single unit:
+    Design Engineer (architecture, system design, API contracts),
+    Software Engineer (implementation, tests, code quality),
+    UX Engineer (user experience, accessibility, DX, docs).
+    All three perspectives must be satisfied before a PR is opened.
+
+  perspectives:
+    - name: "Design Engineer"
+      emoji: "🏗️"
+      focus: ["architecture", "system design", "API contracts", "data models", "scalability"]
+
+    - name: "Software Engineer"
+      emoji: "💻"
+      focus: ["implementation", "tests", "security", "performance", "code quality"]
+
+    - name: "UX Engineer"
+      emoji: "🎨"
+      focus: ["user experience", "accessibility", "CLI ergonomics", "error messages", "docs"]
+
+# ---------------------------------------------------------------------------
+# Security review requirements
+# ---------------------------------------------------------------------------
+security:
+  # Both must approve for deployment
+  required_approvals:
+    - security     # Code-level vulnerability scan
+    - infosec      # Threat modeling and compliance
+
+  # Categories that trigger mandatory security review
+  always_review:
+    - "auth"
+    - "api"
+    - "voice"
+    - "skill"
+    - "config"
+    - "deploy"
+
+  # Findings that auto-block deployment
+  auto_block_severity:
+    - "critical"
+    - "high"

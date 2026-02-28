@@ -1,0 +1,49 @@
+name: "Agent: Wildcard Codebase Scan"
+
+# Runs weekly to audit the entire codebase.
+# Can also be triggered manually.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Every Monday at 6 AM UTC
+
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action"
+        required: false
+        default: "scan"
+        type: string
+
+concurrency:
+  group: wildcard
+  cancel-in-progress: true  # OK to cancel previous scan if a new one starts
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  scan:
+    name: Codebase Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project + dev dependencies
+        run: pip install -e ".[dev]" anthropic pyyaml
+
+      - name: Run wildcard scan
+        run: |
+          python -m agents.scripts.run_agent \
+            --role wildcard \
+            --action scan
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}

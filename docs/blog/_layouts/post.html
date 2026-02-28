@@ -1,0 +1,15 @@
+---
+layout: default
+---
+<article>
+  <h1>{{ page.title }}</h1>
+  <div class="post-meta">
+    <time>{{ page.date | date: "%B %d, %Y" }}</time>
+    {% if page.author %} · {{ page.author }}{% endif %}
+    {% if page.categories %}
+      · {% for cat in page.categories %}<span class="tag">{{ cat }}</span>{% endfor %}
+    {% endif %}
+  </div>
+
+  {{ content }}
+</article>

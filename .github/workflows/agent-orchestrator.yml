@@ -1,0 +1,67 @@
+name: "Agent: Orchestrator"
+
+# Runs every 15 minutes — the heartbeat of the autonomous system.
+# Scans the board, dispatches agents, handles escalations.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # Every 15 minutes
+
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: false
+        default: "cycle"
+        type: choice
+        options:
+          - cycle
+          - setup
+          - escalate
+      issue_number:
+        description: "Issue number (for escalations)"
+        required: false
+        type: string
+      blocked_agent:
+        description: "Which agent is blocked"
+        required: false
+        type: string
+      block_reason:
+        description: "Why the agent is blocked"
+        required: false
+        type: string
+
+concurrency:
+  group: orchestrator
+  cancel-in-progress: false  # Never cancel the orchestrator
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  orchestrate:
+    name: Orchestrator Cycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install anthropic pyyaml
+
+      - name: Run orchestrator
+        run: |
+          python -m agents.scripts.run_agent \
+            --role orchestrator \
+            --action "${{ inputs.action || 'cycle' }}" \
+            --issue-number "${{ inputs.issue_number || '0' }}" \
+            --extra "blocked_agent=${{ inputs.blocked_agent || '' }}" \
+            --extra "block_reason=${{ inputs.block_reason || '' }}"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
