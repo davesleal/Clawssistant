@@ -243,11 +243,14 @@ for understanding how every piece connects.
 
 ---
 
-## 4. Product Architecture — Clawssistant Itself
+## 4. Product Architecture — ClawsOS
+
+Clawssistant is an AI-native home operating system. The Claude brain is the kernel.
+Memory, connectors, and skills are OS subsystems. Home Assistant is one connector.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                      USER INTERFACES                              │
+│                     I/O INTERFACES (Shell)                         │
 │                                                                    │
 │  🗣️  Voice           📱 Mobile App        🖥️  Web Dashboard       │
 │  (Wake Word →        (React Native/       (React/Svelte)          │
@@ -261,28 +264,40 @@ for understanding how every piece connects.
 ┌─────────────────────────────┼────────────────────────────────────┐
 │                    CONVERSATION MANAGER                            │
 │                                                                    │
-│  Multi-turn Context ──── User Profiles ──── Long-term Memory     │
+│  Multi-turn Context ──── User Profiles ──── Context Injection    │
 │        │                      │                    │               │
-│        │              Speaker ID            SQLite / Vector DB     │
-│        │              (pyannote)                                   │
+│        │              Speaker ID            Pulls from Memory     │
+│        │              (pyannote)            System automatically  │
 │        └──────────────────────┘                                   │
 └─────────────────────────────┬────────────────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────────────────┐
-│                        CLAUDE BRAIN                               │
+│                   CLAUDE BRAIN (Kernel)                            │
 │                                                                    │
 │  ┌─────────────────┐   ┌──────────────┐   ┌──────────────────┐  │
 │  │ Anthropic API    │   │ MCP Servers  │   │ Local LLM        │  │
-│  │ (primary)        │   │ (tools)      │   │ (fallback)       │  │
+│  │ (primary)        │   │ (tools)      │   │ (offline)        │  │
 │  │                  │   │              │   │                  │  │
-│  │ claude-sonnet-4-6│   │ home_tools   │   │ llama.cpp /      │  │
-│  │ + tool use       │   │ system_tools │   │ Ollama           │  │
-│  │ + streaming      │   │ memory_tools │   │                  │  │
+│  │ Claude + tool    │   │ home_tools   │   │ 1.5B intent      │  │
+│  │ use + streaming  │   │ memory_tools │   │ (AI HAT+ 2)     │  │
+│  │                  │   │ system_tools │   │ 7B conv (N100)   │  │
+│  │                  │   │ internet_tools│   │                  │  │
 │  └─────────────────┘   └──────────────┘   └──────────────────┘  │
 └─────────────────────────────┬────────────────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────────────────┐
-│                      SKILL FRAMEWORK                              │
+│                    MEMORY SYSTEM (OS Memory)                      │
+│                                                                    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐       │
+│  │ Working  │ │ Episodic │ │ Semantic │ │ Procedural   │       │
+│  │ (session)│ │ (events) │ │ (facts)  │ │ (routines)   │       │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘       │
+│                                                                    │
+│  Storage: SQLite (default) / ChromaDB (vector) / Postgres (multi)│
+└─────────────────────────────┬────────────────────────────────────┘
+                              │
+┌─────────────────────────────┼────────────────────────────────────┐
+│                      SKILL FRAMEWORK (Apps)                       │
 │                                                                    │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
 │  │ 💡 Lights │ │ 🌡️ Climate│ │ 🎵 Media  │ │ ⏰ Timers │           │
@@ -296,16 +311,26 @@ for understanding how every piece connects.
 └─────────────────────────────┬────────────────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────────────────┐
-│                    INTEGRATION LAYER                               │
+│                   CONNECTOR LAYER (Device Drivers)                 │
 │                                                                    │
-│  ┌──────────────────┐  ┌──────┐  ┌────────┐  ┌───────────────┐  │
-│  │ Home Assistant    │  │ MQTT │  │ CalDAV │  │ SIP / VoIP    │  │
-│  │ (REST + WS)      │  │      │  │        │  │               │  │
-│  └──────────────────┘  └──────┘  └────────┘  └───────────────┘  │
+│  ┌──────────────────┐  ┌──────────┐  ┌────────┐  ┌───────────┐ │
+│  │ Home Assistant    │  │   MQTT   │  │ CalDAV │  │ Internet  │ │
+│  │ (optional)        │  │(standalone│  │        │  │ (HTTP)    │ │
+│  └──────────────────┘  └──────────┘  └────────┘  └───────────┘ │
+│  ┌──────────────────┐  ┌──────────┐  ┌────────┐  ┌───────────┐ │
+│  │ Zigbee2MQTT      │  │  Matter  │  │  IMAP  │  │ SIP/VoIP  │ │
+│  │ (no HA needed)   │  │ /Thread  │  │        │  │           │ │
+│  └──────────────────┘  └──────────┘  └────────┘  └───────────┘ │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Media (Spotify, AirPlay, Chromecast, DLNA, MPD)          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Community Connectors (drop .py in connectors/)           │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────┬────────────────────────────────────┘
                               │
 ┌─────────────────────────────┼────────────────────────────────────┐
-│                       DEVICE LAYER                                │
+│                     DEVICE PROTOCOLS                               │
 │                                                                    │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐        │
 │  │ Matter │ │ Zigbee │ │ Z-Wave │ │  WiFi  │ │  BLE   │        │
@@ -376,7 +401,93 @@ the hub runs STT, Claude brain, and TTS.
 
 ---
 
-## 6. Hardware Footprint
+## 6. Memory Architecture
+
+ClawsOS has four memory types, modeled after cognitive science. This is
+what makes it an OS rather than a stateless voice assistant.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     MEMORY SYSTEM                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  🧠 WORKING MEMORY (RAM)                                   │  │
+│  │                                                             │  │
+│  │  In-memory, current session only                           │  │
+│  │  • Active conversation turns                               │  │
+│  │  • Current device states                                   │  │
+│  │  • Active timers, pending actions                          │  │
+│  │  • Who's in the room (presence)                            │  │
+│  │                                                             │  │
+│  │  Evicted when conversation ends or session times out       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                           │ important facts extracted             │
+│                           ▼                                       │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  📚 SEMANTIC MEMORY (Knowledge Base)                       │  │
+│  │                                                             │  │
+│  │  SQLite + optional ChromaDB (vector search)                │  │
+│  │  • User preferences ("Dave likes 68°F at night")           │  │
+│  │  • Home topology ("guest bedroom is upstairs")             │  │
+│  │  • Device relationships ("TV remote controls living room") │  │
+│  │  • Learned facts from conversations                        │  │
+│  │                                                             │  │
+│  │  Persists forever. Per-user + shared household.            │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  📅 EPISODIC MEMORY (Event Log)                            │  │
+│  │                                                             │  │
+│  │  SQLite — timestamped events                               │  │
+│  │  • "Kitchen motion at 2:13 AM Tuesday"                     │  │
+│  │  • "Dave asked about dinner at 6 PM"                       │  │
+│  │  • "Thermostat changed to 72°F at 3 PM"                   │  │
+│  │  • "Front door unlocked at 5:47 PM"                        │  │
+│  │                                                             │  │
+│  │  Feeds pattern detection. Retention policy configurable.   │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                           │ patterns detected                    │
+│                           ▼                                       │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  ⚙️  PROCEDURAL MEMORY (Learned Routines)                  │  │
+│  │                                                             │  │
+│  │  SQLite — automations built from observed patterns         │  │
+│  │  • "Every weekday 7 AM: alarm → coffee → news briefing"   │  │
+│  │  • "Sunset: porch light on"                                │  │
+│  │  • "When Dave says 'movie time': dim lights, TV on, close  │  │
+│  │     blinds"                                                │  │
+│  │                                                             │  │
+│  │  Suggested to user before activation. Never auto-executes  │  │
+│  │  destructive actions without confirmation.                 │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  STORAGE BACKENDS                                          │  │
+│  │                                                             │  │
+│  │  SQLite ──────── Default, zero-config, local               │  │
+│  │  ChromaDB ────── Optional, semantic search over memories   │  │
+│  │  PostgreSQL ──── Optional, multi-hub shared memory         │  │
+│  │                                                             │  │
+│  │  All data encrypted at rest. Local only. Zero telemetry.   │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+
+  How memory flows into every interaction:
+
+  User speaks ──► STT ──► Conversation Manager pulls:
+                            • Working memory (current context)
+                            • Relevant semantic memory (user prefs, home facts)
+                            • Recent episodic memory (what just happened)
+                            • Active procedural memory (running routines)
+                          ──► All injected into Claude prompt as context
+                          ──► Claude responds with full awareness
+                          ──► New facts/events written back to memory
+```
+
+---
+
+## 7. Hardware Footprint
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -495,7 +606,7 @@ the hub runs STT, Claude brain, and TTS.
 
 ---
 
-## 7. Security Trust Boundaries
+## 8. Security Trust Boundaries
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -553,7 +664,7 @@ the hub runs STT, Claude brain, and TTS.
 
 ---
 
-## 8. Ontology — Concept Map
+## 9. Ontology — Concept Map
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -616,7 +727,7 @@ the hub runs STT, Claude brain, and TTS.
 
 ---
 
-## 9. Agentic Workflow — Full Lifecycle
+## 10. Agentic Workflow — Full Lifecycle
 
 ```
 User files          Triage Agent evaluates       PM writes           Orchestrator
@@ -666,7 +777,7 @@ or Discussion       (researcher, data sci,       adds to board       triad squad
 
 ---
 
-## 10. File Map — Where Everything Lives
+## 11. File Map — Where Everything Lives
 
 ```
 clawssistant/
@@ -720,12 +831,13 @@ clawssistant/
 │       ├── _posts/                  # Blog posts (auto-generated)
 │       └── index.md                 # Blog home page
 │
-├── clawssistant/                    # 🏠 THE ACTUAL HOME ASSISTANT
-│   ├── core/                        # Runtime, brain, conversation, memory
-│   ├── voice/                       # Wake word, STT, TTS, audio I/O
-│   ├── integrations/                # Home Assistant, MQTT, calendar
-│   ├── skills/                      # Pluggable skill modules
-│   ├── mcp/                         # MCP server definitions
+├── clawssistant/                    # 🏠 ClawsOS — THE AI-NATIVE HOME OS
+│   ├── core/                        # Kernel: brain, conversation, events, scheduler
+│   ├── memory/                      # Memory system: working, episodic, semantic, procedural
+│   ├── voice/                       # Voice I/O: wake word, STT, TTS, satellite mgmt
+│   ├── connectors/                  # Connector layer: HA, MQTT, Zigbee2MQTT, Matter, internet
+│   ├── skills/                      # Skill framework: pluggable apps
+│   ├── mcp/                         # MCP servers: home, memory, system, internet tools
 │   └── api/                         # FastAPI REST + WebSocket
 │
 ├── tests/                           # Test suite

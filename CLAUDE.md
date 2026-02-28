@@ -2,11 +2,16 @@
 
 ## Project Vision
 
-Clawssistant is a fully open-source, Claude AI-powered home assistant designed to
-replace Google Home, Apple Home, and Alexa. It runs on open/commodity hardware,
-prioritizes local processing for privacy, and uses Claude as the conversational brain
-for natural language understanding, device control, code assistance, and general-purpose
-conversation.
+Clawssistant is a fully open-source, AI-native home operating system powered by Claude.
+It replaces Google Home, Apple Home, and Alexa — not by being a better voice assistant,
+but by being the intelligent platform that runs your home. Claude is the kernel: it
+thinks, remembers, learns, connects, and acts. Voice is one interface. The home is its
+domain. But it's not limited to smart home commands — it has memory, storage, internet
+access, connectors to any service, and the ability to grow with the user.
+
+It runs on open/commodity hardware, prioritizes local processing for privacy, and
+scales from a plug-and-play starter setup to a fully autonomous, offline-capable
+home intelligence system.
 
 **License:** MIT — free to use, modify, distribute, and build upon commercially.
 
@@ -15,11 +20,13 @@ conversation.
 - Google Home, Alexa, and Siri are closed, cloud-dependent, privacy-hostile, and
   increasingly ad-driven
 - Home Assistant proved open-source smart home works at massive scale but its built-in
-  voice pipeline lacks a capable AI brain
+  voice pipeline lacks a capable AI brain — and building on top of it creates a
+  dependency that limits future growth
 - Claude is uniquely suited — tool use, long context, nuanced reasoning, and Anthropic's
   Model Context Protocol (MCP) for extensible tool access
-- No project has built the full-stack open alternative: open hardware + open voice
-  pipeline + capable AI brain + smart home control + general conversation
+- No project has built the full-stack open alternative: an AI-native home OS with open
+  hardware + open voice pipeline + capable AI brain + smart home control + persistent
+  memory + general conversation + internet access + extensible connectors
 
 ### Core Principles
 
@@ -31,54 +38,86 @@ conversation.
    configured.
 3. **Open everything** — MIT licensed code, open hardware designs, documented protocols,
    community-driven development.
-4. **Home Assistant native** — first-class integration with Home Assistant as the device
-   management backbone, but not hard-coupled to it.
+4. **Platform-independent** — Clawssistant owns the stack. Home Assistant is a
+   first-class connector (the best one for day one), but it's one adapter among many.
+   You can run Clawssistant with HA, without HA (direct MQTT, Zigbee2MQTT, Matter),
+   or alongside HA. No single dependency gates the project's future.
 5. **Conversation-first** — not just a command parser. Full multi-turn conversations
    with Claude on demand, including code help, brainstorming, and general assistance.
 6. **Extensible by default** — MCP servers, plugin skills, custom connectors, and a
    public API make it easy to add any integration.
+7. **Grows with the user** — start with the Balanced tier and HA as your connector.
+   As needs grow, add direct protocol adapters, more memory, offline capabilities,
+   and custom skills. The architecture scales from one room to a whole home without
+   re-platforming.
 
 ---
 
 ## Architecture
 
+### ClawsOS — The AI-Native Home Operating System
+
+Clawssistant is structured as an operating system where the AI brain is the kernel,
+not an app running on someone else's platform. Every traditional OS concept has an
+AI-native equivalent:
+
+| Traditional OS | ClawsOS Equivalent | What It Does |
+|----------------|-------------------|--------------|
+| Kernel | Claude Brain | Orchestrates everything — reasoning, decisions, tool use |
+| Memory management | Memory System | Working memory (conversation), episodic (events), semantic (facts), procedural (learned routines) |
+| Filesystem | Local Storage | SQLite, vector DB, config files, knowledge base |
+| Device drivers | Connectors/Adapters | HA adapter, MQTT adapter, Zigbee2MQTT adapter, Matter adapter, REST adapter |
+| Networking stack | Network Layer | Internet access, LAN discovery, MQTT bus, WebSocket, MCP |
+| User space / Apps | Skills | Pluggable capabilities — like apps, but AI-native |
+| Shell / GUI | I/O Interfaces | Voice (primary), web dashboard, mobile app, CLI, API |
+| Process scheduler | Event Loop | asyncio + task scheduling + connector polling |
+| Permissions | Security Layer | Tiered action risk, sandboxed skills, scoped connectors |
+
 ### System Layers
 
 ```
 +------------------------------------------------------------------+
-|                        Companion Apps                             |
-|              (Mobile App / Web Dashboard / CLI)                   |
+|                      I/O Interfaces                               |
+|     Voice Pipeline / Web Dashboard / Mobile App / CLI / API       |
 +------------------------------------------------------------------+
 |                      REST + WebSocket API                         |
 +------------------------------------------------------------------+
 |                    Conversation Manager                           |
-|        (Multi-turn context, user profiles, memory)                |
+|        (Multi-turn context, user profiles, modes)                 |
 +------------------------------------------------------------------+
-|                        Claude Brain                               |
+|                     Claude Brain (Kernel)                         |
 |  (Anthropic API / MCP tools / local model fallback)               |
++------------------------------------------------------------------+
+|                      Memory System                                |
+|  Working (context) / Episodic (events) / Semantic (facts) /       |
+|  Procedural (routines) — SQLite + Vector DB                       |
 +------------------------------------------------------------------+
 |                      Skill Framework                              |
 |  (Weather, Timers, Media, Routines, Code, Custom skills)          |
 +------------------------------------------------------------------+
-|                    Integration Layer                               |
-|  (Home Assistant API, MQTT, REST, CalDAV, IMAP, SIP/VoIP)        |
+|                    Connector Layer                                 |
+|  Home Assistant / MQTT / Zigbee2MQTT / Matter / REST / CalDAV /   |
+|  IMAP / SIP / Media services / Internet / Any MCP server          |
 +------------------------------------------------------------------+
 |                      Device Layer                                  |
 |  (Matter/Thread, Zigbee, Z-Wave, WiFi, Bluetooth, IR)            |
 +------------------------------------------------------------------+
-|                     Voice Pipeline                                 |
-|  (Wake Word -> STT -> NLU -> TTS -> Audio Output)                 |
-+------------------------------------------------------------------+
 |                       Hardware                                     |
-|  (RPi 4/5, HA Yellow/Green, x86/ARM, ESP32 satellites)           |
+|  (RPi 5 + AI HAT+, N100, x86/ARM, ESP32 satellites)              |
 +------------------------------------------------------------------+
 ```
 
+**Key architectural decision:** Home Assistant is a connector, not the foundation.
+On day one, HA is the easiest and most capable connector — it already speaks to
+hundreds of device types. But Clawssistant can also connect directly via MQTT,
+Zigbee2MQTT, Matter, or raw REST APIs. If HA changes direction, Clawssistant
+continues without it.
+
 ### Voice Pipeline (All Open Source)
 
-Clawssistant uses a two-tier voice architecture: thin satellite devices in each room
-handle wake word detection and audio I/O, while the central hub runs the heavy
-processing (STT, Claude brain, TTS).
+Clawssistant owns its voice pipeline. Two-tier architecture: thin satellite devices
+in each room handle wake word detection and audio I/O, while the central hub runs
+the heavy processing (STT, Claude brain, TTS).
 
 | Stage | Technology | Where It Runs | Notes |
 |-------|-----------|---------------|-------|
@@ -86,22 +125,21 @@ processing (STT, Claude brain, TTS).
 | Audio Capture | XMOS XU316 (Voice PE) | Satellite | Echo cancellation, noise suppression, auto gain |
 | Audio Transport | Wyoming Protocol | Network | Streams audio from satellite to hub |
 | Speech-to-Text | faster-whisper / Whisper.cpp | Hub | CPU: 2-3s (RPi 5) / <1s (N100). With AI HAT+: sub-second on any RPi 5 |
-| Natural Language | Claude (API) / local fallback | Hub → Cloud | Anthropic conversation agent with tool use |
+| Natural Language | Claude (API) / local fallback | Hub → Cloud | Claude brain with tool use via MCP |
 | Text-to-Speech | Piper TTS | Hub | High-quality local neural TTS |
 | Audio Output | Wyoming Protocol → Speaker | Satellite | Response audio streamed back to room |
-| Satellite Protocol | ESPHome + Wyoming | Network | HA Voice PE, ESP32-S3-BOX-3, or DIY |
+| Satellite Protocol | ESPHome + Wyoming | Network | Voice PE, ESP32-S3-BOX-3, or DIY |
 
-**Home Assistant Integration:**
-Clawssistant registers as a **conversation agent** in Home Assistant's Assist pipeline.
-This means the Voice PE and any Wyoming satellite work out of the box — HA routes the
-transcribed text to Claude (via the Anthropic conversation integration or our custom
-agent), and Claude's response is sent back through TTS to the satellite.
+**HA Compatibility (optional, not required):**
+Clawssistant can also register as a conversation agent in Home Assistant's Assist
+pipeline for users who want both systems. But the voice pipeline runs independently
+of HA — Clawssistant manages Wyoming satellites, STT, TTS, and Claude routing
+directly.
 
 **MCP Bridge:**
-Home Assistant's built-in MCP Server integration exposes HA entities and services to
-Claude. This means Claude can control devices, read sensor states, and trigger
-automations through MCP tools — no custom integration code needed for basic device
-control.
+Home Assistant's built-in MCP Server integration can expose HA entities to Claude
+as one connector. Clawssistant also connects to devices directly via its own
+MQTT, Zigbee2MQTT, and Matter connectors — no HA required for device control.
 
 ### Claude Brain
 
@@ -132,25 +170,74 @@ interact with the home and perform complex reasoning.
 - Shell command execution with user approval
 - Project scaffolding and debugging assistance
 
-### Device and Integration Layer
+### Memory System
 
-**Smart Home Protocols:**
+The memory system is what makes Clawssistant an OS rather than a stateless voice
+assistant. It persists knowledge across conversations, learns user patterns, and
+builds a model of the home over time.
+
+**Memory types:**
+
+| Type | What It Stores | Storage | Example |
+|------|---------------|---------|---------|
+| **Working** | Current conversation context, active tasks, recent device states | In-memory (RAM) | "User asked to dim the lights 30 seconds ago" |
+| **Episodic** | Timestamped events — what happened and when | SQLite | "Kitchen motion sensor triggered at 2:13 AM on Tuesday" |
+| **Semantic** | Facts about the home, users, preferences, relationships | SQLite + Vector DB | "Dave prefers 68°F at night", "The guest bedroom is upstairs" |
+| **Procedural** | Learned routines, patterns, and automations | SQLite | "Every weekday at 7am, Dave's alarm goes off, then coffee maker starts" |
+
+**How memory works in practice:**
+- Claude receives relevant memory as context with every prompt (time of day, who's
+  home, recent events, user preferences, learned patterns)
+- New facts are extracted from conversations and stored automatically
+  ("Remember I like it warmer on weekends" → semantic memory)
+- Event patterns are detected over time and surfaced as routine suggestions
+  ("You turn on the porch light every evening at sunset — want me to automate that?")
+- Memory is local-only, encrypted at rest, and never sent to any cloud service
+  except as part of the Claude API prompt (which the user controls)
+- Per-user memory isolation — each household member has their own preferences
+- Shared household memory for common facts (room names, device locations, routines)
+
+**Storage backends:**
+- **SQLite** — default, zero-config, works everywhere
+- **Vector DB (ChromaDB)** — optional, enables semantic search over memories
+  ("What did we talk about regarding the garden?")
+- **PostgreSQL** — optional, for multi-node deployments where multiple hubs share
+  memory
+
+### Connector Layer
+
+Connectors are how ClawsOS talks to the outside world. Each connector is an adapter
+that translates between Clawssistant's internal model and an external system. Home
+Assistant is a connector. MQTT is a connector. The internet is a connector.
+
+**Device Protocol Connectors:**
 - **Matter/Thread** — native support, the future standard
-- **Zigbee** — via zigbee2mqtt or ZHA (Zigbee Home Automation)
+- **Zigbee** — via Zigbee2MQTT (direct, no HA needed) or ZHA
 - **Z-Wave** — via Z-Wave JS
 - **WiFi** — direct integration with Shelly, Tuya (local), ESPHome, WLED
 - **Bluetooth/BLE** — proximity detection, BLE devices
 - **IR** — Broadlink and similar IR blasters for legacy devices
 
-**Software Integrations:**
-- **Home Assistant** — primary integration via REST API and WebSocket
-- **MQTT** — universal message bus for IoT devices
+**Platform Connectors:**
+- **Home Assistant** — the richest day-one connector. REST API + WebSocket + MCP
+  Server. Speaks to 2000+ device types. Recommended starting point, not required.
+- **MQTT** — universal message bus. Works standalone via Zigbee2MQTT, Tasmota,
+  ESPHome, or any MQTT-speaking device — no HA needed.
+- **Internet** — HTTP client for web APIs, search, information retrieval. Claude
+  can look things up, check services, pull weather data directly.
 - **CalDAV/CardDAV** — calendar and contacts (Nextcloud, Google, Apple)
 - **IMAP/SMTP** — email reading and sending
 - **SIP/VoIP** — phone calls and intercom
 - **Media** — MPD, Spotify Connect, AirPlay, Chromecast, DLNA
 - **REST/Webhook** — generic connector for any HTTP API
-- **MCP Servers** — any MCP-compatible tool server
+- **MCP Servers** — any MCP-compatible tool server becomes a connector
+- **Filesystem** — local file read/write for developer mode, configs, exports
+
+**Connector interface:** every connector implements `discover()`, `read_state()`,
+`execute()`, `subscribe()`. Claude doesn't need to know whether a light is
+controlled via HA, MQTT, or Matter — it says "turn on the kitchen light" and the
+right connector handles it. New connectors are Python modules dropped into
+`connectors/`.
 
 ### Skill Framework
 
@@ -184,13 +271,21 @@ Skills are pluggable modules that give Clawssistant specific capabilities:
 
 ### Conversation Manager
 
-- **Multi-turn context** — remembers conversation state across exchanges
+The conversation manager is the interface between users and the Claude kernel. It
+pulls from the memory system to give Claude rich context on every interaction.
+
+- **Multi-turn context** — remembers conversation state across exchanges (working
+  memory)
 - **Per-user profiles** — voice identification (speaker diarization), personal
-  preferences, custom wake words
-- **Household model** — shared context for the home (who's home, routines, preferences)
-- **Long-term memory** — stores important facts and preferences in local database
+  preferences, custom wake words (semantic memory)
+- **Household model** — shared context for the home (who's home, routines,
+  preferences) — built over time from episodic + semantic memory
 - **Context injection** — automatically includes relevant state (time of day, who's
-  home, recent events, device states) in Claude prompts
+  home, recent events, device states, user preferences, learned patterns) in every
+  Claude prompt
+- **Proactive intelligence** — the system notices patterns in episodic memory and
+  suggests automations ("You've turned on the porch light at sunset three days in a
+  row — want me to make that automatic?")
 - **Conversation modes:**
   - **Command mode** — quick device control ("turn off the kitchen lights")
   - **Chat mode** — extended conversation ("let's talk about dinner plans")
@@ -205,7 +300,8 @@ Skills are pluggable modules that give Clawssistant specific capabilities:
 
 Clawssistant runs as a hub-and-satellite system:
 
-- **Hub** — runs Home Assistant, Claude brain, STT, TTS. Needs real compute.
+- **Hub** — runs ClawsOS (Claude brain, memory, connectors, STT, TTS). Needs real
+  compute. Optionally also runs Home Assistant as a connector.
 - **Satellites** — one per room. Handle wake word detection and audio I/O. Thin clients.
 
 ### Hub Options (pick one)
@@ -329,14 +425,14 @@ Only needed if running Clawssistant directly on the hub without satellites:
 - **Language:** Python 3.12+ (primary), Rust (performance-critical components)
 - **Async framework:** asyncio with uvloop
 - **Process manager:** systemd service units
-- **Configuration:** YAML (Home Assistant style)
-- **Database:** SQLite (local state), optional PostgreSQL for multi-node
+- **Configuration:** YAML
+- **Database:** SQLite (local state + memory), optional PostgreSQL for multi-node
+- **Vector DB:** ChromaDB (optional, for semantic memory search)
 
 ### AI / ML
-- **Claude API:** Anthropic conversation integration (built into HA) + anthropic Python SDK
-- **MCP:** Home Assistant MCP Server integration exposes entities/services to Claude;
-  additional MCP servers for custom tools
-- **Local STT:** faster-whisper (CTranslate2 backend) or HA Cloud Whisper
+- **Claude API:** anthropic Python SDK with tool use and streaming
+- **MCP:** ClawsOS core MCP servers + optional HA MCP Server + community servers
+- **Local STT:** faster-whisper (CTranslate2 backend)
 - **Local TTS:** Piper (ONNX runtime)
 - **Wake word:** microWakeWord (on-device, used by Voice PE) + openWakeWord (server-side)
 - **NPU acceleration:** Raspberry Pi AI HAT+ (Hailo-8L/8/10H) for hardware-accelerated
@@ -364,24 +460,37 @@ Only needed if running Clawssistant directly on the hub without satellites:
 
 ```
 clawssistant/
-  core/                    # Core runtime and orchestration
+  core/                    # ClawsOS kernel
     brain.py               # Claude integration and prompt management
     conversation.py        # Multi-turn conversation manager
-    memory.py              # Long-term memory and user profiles
     config.py              # Configuration management
-    events.py              # Event bus
-  voice/                   # Voice pipeline
+    events.py              # Event bus and task scheduler
+    scheduler.py           # Cron-like task scheduling (routines, checks)
+  memory/                  # Memory system (the OS's "RAM + disk")
+    __init__.py            # Memory manager — coordinates all memory types
+    working.py             # Working memory (current session context)
+    episodic.py            # Episodic memory (timestamped events)
+    semantic.py            # Semantic memory (facts, preferences, knowledge)
+    procedural.py          # Procedural memory (learned routines, patterns)
+    store.py               # Storage backends (SQLite, ChromaDB, Postgres)
+  voice/                   # Voice I/O pipeline
     wake_word.py           # Wake word detection (openWakeWord)
     stt.py                 # Speech-to-text (faster-whisper)
     tts.py                 # Text-to-speech (Piper)
     audio.py               # Audio I/O management
-    satellite.py           # Wyoming satellite protocol
-  integrations/            # External service connectors
-    homeassistant.py       # Home Assistant REST/WS client
-    mqtt.py                # MQTT client
-    calendar.py            # CalDAV integration
-    media.py               # Media player integrations
-  skills/                  # Pluggable skill modules
+    satellite.py           # Wyoming satellite protocol (owned by ClawsOS)
+  connectors/              # Connector layer (the OS's "device drivers")
+    __init__.py            # Connector base class and registry
+    homeassistant.py       # Home Assistant connector (REST + WS + MCP)
+    mqtt.py                # MQTT connector (standalone, no HA needed)
+    matter.py              # Matter/Thread connector
+    zigbee2mqtt.py         # Zigbee2MQTT direct connector
+    calendar.py            # CalDAV connector
+    email.py               # IMAP/SMTP connector
+    media.py               # Media player connectors
+    internet.py            # HTTP client, web search, information retrieval
+    sip.py                 # SIP/VoIP connector
+  skills/                  # Skill framework (the OS's "apps")
     __init__.py            # Skill base class and loader
     lights.py              # Light control skill
     climate.py             # Climate/thermostat skill
@@ -391,7 +500,9 @@ clawssistant/
     code.py                # Developer mode / code skill
   mcp/                     # MCP server definitions
     home_tools.py          # Home control MCP tools
+    memory_tools.py        # Memory read/write MCP tools
     system_tools.py        # System management tools
+    internet_tools.py      # Web access MCP tools
   api/                     # REST + WebSocket API
     server.py              # FastAPI application
     routes/                # API route definitions
@@ -413,35 +524,35 @@ clawssistant/
 ## MCP Integration Strategy
 
 Clawssistant uses Anthropic's Model Context Protocol (MCP) as its primary
-extensibility mechanism. Claude communicates with the home and external services
-through MCP tool servers.
+extensibility mechanism. MCP servers are how ClawsOS extends its capabilities —
+each MCP server is essentially a "driver" that gives Claude access to new tools.
 
-### Home Assistant's Built-in MCP Server
+### ClawsOS Core MCP Servers
 
-Home Assistant now includes an **MCP Server integration** that exposes HA entities and
-services as MCP tools. This means Claude can control devices, read sensor states, and
-trigger automations through the standard MCP protocol — no custom server needed for
-basic device control.
+These ship with Clawssistant and provide the OS-level capabilities:
 
-**What HA's MCP Server provides out of the box:**
+- **clawssistant-home** — device control, entity state queries, scene activation
+  (uses whichever connectors are configured: HA, MQTT, Matter, etc.)
+- **clawssistant-memory** — read/write user preferences, conversation memory,
+  semantic search over past interactions
+- **clawssistant-system** — system health, logs, configuration management,
+  connector status, storage usage
+- **clawssistant-media** — enhanced media control (multi-room, queue management)
+- **clawssistant-code** — file read/write/execute for developer mode
+- **clawssistant-routines** — natural language routine creation and management
+- **clawssistant-internet** — web search, HTTP requests, information retrieval
+
+### Home Assistant as MCP Source (Optional)
+
+If you run HA as a connector, its built-in MCP Server integration can expose HA
+entities and services to Claude. This is a convenient shortcut — HA already speaks
+to 2000+ device types. But it's one MCP source among many, not the primary one.
+
+**What HA's MCP Server provides:**
 - All exposed entities (lights, switches, climate, locks, sensors, etc.)
 - Service calls (turn_on, turn_off, set_temperature, etc.)
 - Entity state queries
 - Automation triggers
-
-**Home Assistant also has an Anthropic Conversation integration** that registers Claude
-as a conversation agent directly in HA's Assist pipeline. This means Voice PE satellites
-can talk to Claude without any Clawssistant middleware — HA handles the routing.
-
-### Clawssistant-Specific MCP Servers
-
-On top of HA's built-in MCP, Clawssistant adds:
-
-- **clawssistant-memory** — read/write user preferences and conversation memory
-- **clawssistant-system** — system health, logs, configuration management
-- **clawssistant-media** — enhanced media control (multi-room, queue management)
-- **clawssistant-code** — file read/write/execute for developer mode
-- **clawssistant-routines** — natural language routine creation and management
 
 ### Community MCP Servers (Examples)
 
@@ -458,31 +569,35 @@ On top of HA's built-in MCP, Clawssistant adds:
 ### How It Works (End-to-End Voice Flow)
 
 ```
-Voice PE Satellite          Home Assistant Hub            Cloud
+Voice PE Satellite           ClawsOS Hub                  Cloud
 ─────────────────          ──────────────────           ─────
 1. Wake word detected
    (microWakeWord on XMOS)
 
 2. Audio streamed ─────────► 3. faster-whisper (STT)
    via Wyoming protocol        transcribes to text
+                                (NPU-accelerated if AI HAT+)
 
-                             4. HA Assist pipeline
-                                routes to Claude
-                                conversation agent
+                             4. Conversation manager
+                                loads context from
+                                memory system
 
                              5. Context injected ─────► 6. Claude API
                                 (time, user, devices,      receives prompt
-                                 history, memory)          + MCP tools
+                                 memory, preferences,      + MCP tools
+                                 learned patterns)
 
                                                         7. Claude decides:
                                                            - tool calls
                                                            - or conversation
+                                                           - or memory write
 
-                             8. MCP tools execute ◄──── 9. Tool results
-                                (HA entities/services)     returned
+                             8. Connectors execute ◄─── 9. Tool results
+                                (HA, MQTT, Matter,         returned
+                                 internet, filesystem)
 
                             10. Claude response ◄────── 11. Final response
-                                                            synthesized
+                                Memory updated              synthesized
 
                             12. Piper TTS converts
                                 response to audio
@@ -491,10 +606,10 @@ Voice PE Satellite          Home Assistant Hub            Cloud
     on satellite speaker
 ```
 
-**Key insight:** Home Assistant is already the orchestration layer for the voice
-pipeline. Clawssistant doesn't need to reimplement STT/TTS routing — it plugs into
-HA's Assist pipeline as a conversation agent and adds the Claude brain, memory,
-multi-turn context, and enhanced skills on top.
+**Key insight:** Clawssistant owns the entire pipeline. It manages Wyoming satellites
+directly, runs STT/TTS, and routes through the Claude brain with full memory context.
+Home Assistant is an optional connector for device control, not the orchestration layer.
+This means Clawssistant's future isn't gated by HA's roadmap.
 
 ---
 
@@ -585,41 +700,50 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and the full security
 
 ## Key Features Roadmap
 
-### Phase 1 — Foundation
-- [ ] Core runtime with configuration system
-- [ ] Claude brain with Anthropic API integration
-- [ ] Basic voice pipeline (wake word + STT + TTS)
-- [ ] Home Assistant integration (lights, switches, climate)
-- [ ] Single-room operation on Raspberry Pi 5
+The roadmap follows the "balanced start, grow at your pace" principle. Phase 1
+works with HA as the primary connector. Each subsequent phase reduces HA
+dependency and grows ClawsOS into a standalone platform.
+
+### Phase 1 — Foundation (Balanced Tier)
+- [ ] Core runtime with configuration system and event loop
+- [ ] Claude brain with Anthropic API integration (kernel)
+- [ ] Memory system — working + semantic memory (SQLite)
+- [ ] Basic voice pipeline (wake word + STT + TTS) — ClawsOS-owned
+- [ ] Home Assistant connector (first connector, easiest day-one path)
+- [ ] MQTT connector (standalone, no HA required)
+- [ ] Single-room operation on Raspberry Pi 5 + AI HAT+
 - [ ] CLI interface for testing and development
 - [ ] Basic web dashboard
 
-### Phase 2 — Smart Home
-- [ ] Full Home Assistant entity support
-- [ ] Matter/Thread native support
-- [ ] MQTT integration
+### Phase 2 — Smart Home + Memory
+- [ ] Full connector layer — HA, MQTT, Zigbee2MQTT, Matter
+- [ ] Episodic memory (event logging, pattern detection)
+- [ ] Procedural memory (learned routines, suggested automations)
 - [ ] Skill framework with built-in skills (timers, weather, media, routines)
-- [ ] Multi-room via ESP32 Wyoming satellites
-- [ ] Conversation memory and user profiles
+- [ ] Multi-room via Voice PE Wyoming satellites
+- [ ] Per-user profiles with speaker identification
+- [ ] Internet connector (web search, API access, information retrieval)
 - [ ] Mobile companion app (basic)
 
-### Phase 3 — Intelligence
-- [ ] Proactive suggestions and automations
-- [ ] Energy monitoring and optimization
-- [ ] Natural language routine creation ("every morning at 7am, turn on the coffee maker")
-- [ ] Calendar integration and daily briefings
-- [ ] Shopping list with smart suggestions
-- [ ] Speaker identification for per-user responses
-- [ ] Local LLM fallback for offline operation
+### Phase 3 — Intelligence (the OS becomes smart)
+- [ ] Proactive suggestions from pattern analysis ("you always do X at Y")
+- [ ] Natural language routine creation ("every morning at 7am, start coffee")
+- [ ] Energy monitoring and optimization suggestions
+- [ ] Calendar + email connectors with daily briefings
+- [ ] Shopping list with smart suggestions from conversation context
+- [ ] Semantic memory search (ChromaDB) — "what did we discuss about the garden?"
+- [ ] Local LLM fallback for offline operation (AI HAT+ 2)
+- [ ] Connector marketplace — community-contributed connectors
 
-### Phase 4 — Advanced
+### Phase 4 — Full Platform
 - [ ] Developer mode (Claude Code-style code assistance)
-- [ ] Phone call capability (SIP/VoIP)
+- [ ] Phone call capability (SIP/VoIP connector)
 - [ ] Security system integration (cameras, alarms, locks)
-- [ ] Multi-node deployment (distributed across rooms)
+- [ ] Multi-node deployment (distributed hubs with shared memory)
 - [ ] Custom hardware designs (3D printed enclosures, custom PCBs)
 - [ ] Community skill marketplace
 - [ ] Voice cloning for custom TTS voices (with consent)
+- [ ] Run fully HA-free with direct Matter/Thread + Zigbee2MQTT
 
 ---
 
@@ -686,15 +810,20 @@ python -m clawssistant
 
 | Feature | Clawssistant | Google Home | Alexa | Apple Home | HA Voice |
 |---------|-------------|-------------|-------|------------|----------|
+| Architecture | AI-native OS | Cloud app | Cloud app | Cloud app | Plugin |
 | Open Source | MIT | No | No | No | Yes (HA) |
 | AI Brain | Claude | Google AI | Alexa AI | Siri | Limited |
+| Persistent Memory | Yes (4 types) | Limited | Limited | No | No |
 | Local Processing | Yes (primary) | No | No | Partial | Yes |
 | Privacy | Full control | Low | Low | Medium | High |
+| Internet Access | Yes (connector) | Walled garden | Walled garden | Walled garden | No |
 | Custom Hardware | Yes | No | No | No | Yes |
 | Full Conversations | Yes (Claude) | Limited | Limited | Limited | No |
 | Code Assistance | Yes | No | No | No | No |
 | MCP Extensibility | Yes | No | No | No | No |
+| Learns Over Time | Yes | No | Minimal | No | No |
 | Vendor Lock-in | None | Google | Amazon | Apple | None |
+| Runs Without Cloud | Yes (offline) | No | No | No | Yes |
 | Cost | API key only | Subscription | Subscription | Hardware | Free |
 
 ---
